@@ -1,17 +1,5 @@
-import p5, {
-  Color,
-  Distortion,
-  Element,
-  FFT,
-  Image,
-  IMAGE,
-  MediaElement,
-  MonoSynth,
-  Oscillator,
-  Renderer,
-  Reverb,
-} from "p5";
 import "p5/lib/addons/p5.sound";
+import p5, { Distortion, FFT, Image, Oscillator, Renderer, Reverb } from "p5";
 import { noteFreqs } from "./Notes";
 let cnv: Renderer;
 const parent: HTMLDivElement = document.querySelector("div#parent")!;
@@ -28,6 +16,8 @@ type IntRange<F extends number, T extends number> = Exclude<
   Enumerate<F>
 >;
 type Note = `${"A" | "B" | "C" | "D" | "E" | "F" | "G"}${IntRange<0, 8>}`;
+
+let waveform: any;
 
 const sketch = (p5: p5) => {
   class GuitarString {
@@ -108,11 +98,6 @@ const sketch = (p5: p5) => {
         ) {
           //@ts-ignore
           this.selectedFret = i + 1;
-          console.log(
-            Object.values(noteFreqs)[
-              Object.keys(noteFreqs).indexOf(this.openNote) + this.selectedFret
-            ]
-          );
           return true;
         }
         range--;
@@ -160,7 +145,9 @@ const sketch = (p5: p5) => {
     outPut: number = 0.5;
     constructor(x: number, y: number, width: number, height: number) {
       this.distortion = new Distortion(this.distAmount, "4x");
-      (this.x = x), (this.y = y);
+      this.distortion.drywet(0.3);
+      this.x = x;
+      this.y = y;
       this.width = width;
       this.height = height;
       this.bg = p5.loadImage("Dist.png");
@@ -192,8 +179,10 @@ const sketch = (p5: p5) => {
         this.distortion.amp(this.outPut, 0.2);
         if (this.distAmount < 0) {
           this.distortion.set(0);
+          this.distortion.drywet(this.distAmount);
         } else {
           this.distortion.set(this.distAmount);
+          this.distortion.drywet(this.distAmount);
         }
       }
     }
@@ -255,6 +244,7 @@ const sketch = (p5: p5) => {
           this.revKnob.height / 5
         );
         p5.pop();
+        this.reverb.drywet(this.revAmount);
       }
     }
 
@@ -279,7 +269,6 @@ const sketch = (p5: p5) => {
   let rev: ReverbPedal;
   let cable: Image;
   let fft: FFT;
-
   p5.preload = () => {
     guitar = p5.loadImage("guitar.png");
     floor = p5.loadImage("floor.png");
@@ -303,17 +292,15 @@ const sketch = (p5: p5) => {
       btn.hide();
     });
     //@ts-ignore
-    document.querySelector("Button").click();
+    // document.querySelector("Button").click();
     dist = new DistortionPedal(500, 0, 200, 300);
     rev = new ReverbPedal(200, -10);
     fft = new FFT(0.5, 256);
   };
-  //@ts-ignore
-
+  let mouseY: number = -10;
   p5.draw = () => {
     if (started) {
-      let waveform = fft.waveform();
-
+      waveform = fft.waveform();
       p5.background(255, 255);
       if (guitar && floor) {
         p5.image(floor, 0, 0, 1920, 1080);
@@ -355,57 +342,70 @@ const sketch = (p5: p5) => {
       dist.show();
       rev.show();
       if (dist.distRotateAllowed) {
-        dist.distRotate = p5.constrain(
-          p5.map(p5.mouseY, 70, 400, -100, 100),
-          -100,
-          100
-        );
-        dist.distAmount = p5.constrain(
-          p5.map(p5.mouseY, 40, 400, 0, 100) / 100,
-          0,
-          1
-        );
+        // dist.distRotate = p5.constrain(
+        //   p5.map(p5.mouseY, 70, 400, -100, 100),
+        //   -100,
+        //   100
+        // );
+        // dist.distAmount = p5.constrain(
+        //   p5.map(p5.mouseY, 40, 400, 0, 100) / 100,
+        //   0,
+        //   1
+        // );
+      }
+      if (dist.distRotateAllowed) {
+        if (p5.mouseY < mouseY) {
+          if (dist.distRotate < 100) {
+            dist.distRotate = dist.distRotate += 10;
+            dist.distAmount = p5.constrain((dist.distAmount += 0.1), 0, 1);
+          }
+        } else if (p5.mouseY > mouseY) {
+          if (dist.distRotate > -100) {
+            dist.distRotate = dist.distRotate -= 10;
+            dist.distAmount = p5.constrain((dist.distAmount -= 0.1), 0, 1);
+          }
+        }
+        mouseY = p5.mouseY;
       }
       if (dist.outputRotateAllowed) {
-        dist.outputRotate = p5.constrain(
-          p5.map(p5.mouseY, 40, 400, -100, 100),
-          -100,
-          100
-        );
-        dist.outPut = p5.constrain(
-          p5.map(p5.mouseY, 40, 400, 0, 100) / 100,
-          0,
-          1
-        );
+        if (p5.mouseY < mouseY) {
+          dist.outputRotate = p5.constrain(
+            (dist.outputRotate += 10),
+            -100,
+            100
+          );
+          dist.outPut = p5.constrain((dist.outPut += 0.1), 0, 1);
+        } else if (p5.mouseY > mouseY) {
+          dist.outputRotate = p5.constrain(
+            (dist.outputRotate -= 10),
+            -100,
+            100
+          );
+          dist.outPut = p5.constrain((dist.outPut -= 0.1), 0, 1);
+        }
+        mouseY = p5.mouseY;
       }
       if (rev.knobRotateAllowed) {
-        rev.knobRotate = p5.constrain(
-          p5.map(p5.mouseY, 40, 400, -100, 100),
-          -100,
-          100
-        );
-        rev.revAmount = p5.constrain(
-          p5.map(p5.mouseY, 70, 400, 0, 100) / 100,
-          0,
-          1
-        );
+        if (p5.mouseY < mouseY) {
+          rev.knobRotate = p5.constrain((rev.knobRotate += 10), -100, 100);
+          rev.revAmount = p5.constrain((rev.revAmount += 0.1), 0, 1);
+        } else if (p5.mouseY > mouseY) {
+          rev.knobRotate = p5.constrain((rev.knobRotate -= 10), -100, 100);
+          rev.revAmount = p5.constrain((rev.revAmount -= 0.1), 0, 1);
+        }
       }
-      rev.reverb.drywet(rev.revAmount);
-      p5.noFill();
-      p5.strokeWeight(3);
-      p5.push();
-      p5.translate(20, 800);
-      p5.beginShape();
-      for (let i = 0; i < waveform.length; i++) {
-        p5.vertex(i * 2, waveform[i] * 500);
-      }
-      p5.endShape();
-      p5.pop();
+      mouseY = p5.mouseY;
     }
-
-    //@ts-ignore
-    // p5.noLoop();
-    // console.log(p5.soundOut.output);
+    p5.noFill();
+    p5.strokeWeight(3);
+    p5.push();
+    p5.translate(40, 800);
+    p5.beginShape();
+    for (let i = 0; i < waveform?.length; i++) {
+      p5.curveVertex(i * 2, waveform[i] * 500);
+    }
+    p5.endShape();
+    p5.pop();
   };
   p5.mousePressed = () => {
     for (let strring of strrings) {
@@ -432,4 +432,4 @@ const sketch = (p5: p5) => {
   };
 };
 
-new p5(sketch, parent);
+let guit = new p5(sketch, parent);
